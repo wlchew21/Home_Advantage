@@ -1,0 +1,877 @@
+---
+title: "CBB HCA Plots"
+author: "Bill Chew"
+date: "`r format(Sys.time(), '%B %d, %Y')`"
+output: html_document
+---
+
+```{r packages, echo = FALSE, warning=FALSE, message=FALSE}
+library(dplyr)
+library(tidyr)
+library(readr)
+library(lubridate)
+```
+
+```{r datasetup, echo = FALSE, warning=FALSE, message=FALSE}
+# if at school
+# home<- "C:\\Users\\wlchew\\OneDrive - University of Iowa\\Creative Component\\Data"
+# Surface
+#home <- "C:\\Users\\Bill Chew\\OneDrive for Business\\Creative Component\\Data"
+# Lenovo
+home <- "C:\\Users\\wlche\\OneDrive - University of Iowa\\Creative Component\\Data"
+
+core.dat <- read.csv(paste0(home,"\\cbb\\cbb_gamedata_2010_2017.csv"),
+                     stringsAsFactors = FALSE)
+
+core.dat <- mutate(core.dat, Date = as.Date(Date))
+div1.dat <- filter(core.dat, H_Div1 == 1, A_Div1==1)
+
+# Initialize tables ####
+G <- diff(range(core.dat$season)) + 1
+
+HCA <- matrix(rep(NA,G*21),ncol=21,
+              dimnames = list(NULL,c("HCA_Points","HCA_2Pt","HCA_3Pt",
+                                     "HCA_FTmade","HCA_FTattempt",
+                                     "HCA_2PTattempt","HCA_3PTattempt",
+                                     "HCA_Assists","HCA_Steals",
+                                     "HCA_Blocks","HCA_Turnovers",
+                                     "HCA_Personal_Fouls",
+                                     "HCA_ORebounds","HCA_DRebounds",
+                                     "HCA_Total_Rebounds",
+                                     "HCA_FG_Pct","HCA_2PT_Pct", #_#
+                                     "HCA_FT_Pct","HCA_3PT_Pct",
+                                     "Season_Start","Season_End")))
+b <- 1
+out_tab.pts <- data.frame()
+out_tab.2pt <- data.frame()
+out_tab.3pt <- data.frame()
+out_tab.ft  <- data.frame()
+out_tab.ftatt  <- data.frame()
+out_tab.pt2a  <- data.frame()
+out_tab.pt3a  <- data.frame()
+out_tab.asst  <- data.frame()
+out_tab.stl  <- data.frame()
+out_tab.blk  <- data.frame()
+out_tab.tov  <- data.frame()
+out_tab.pf  <- data.frame()
+out_tab.orb  <- data.frame()
+out_tab.drb  <- data.frame()
+out_tab.trb  <- data.frame()
+out_tab.fg_pct <- data.frame() #_#
+out_tab.2pt_pct <- data.frame()
+out_tab.ft_pct <- data.frame()
+out_tab.3pt_pct <- data.frame()
+```
+
+```{r modelmatrix, message=FALSE, echo=FALSE}
+for(i in 2010:2017){
+  # Data for each season ####
+  # Season data A
+  A <- filter(div1.dat, season == i)
+  # Assign Numbers to Teams
+  Tm_nums <- mutate(distinct(union_all(distinct(A, Tm = H_Tm, .keep_all = F),
+                                       distinct(A, Tm = A_Tm, .keep_all = F)),
+                             .keep_all=F),
+                    Tm_num = rank(Tm))
+  # Link numbers to teams
+  B <- left_join(left_join(A,select(Tm_nums, H_Tm = Tm, H_Tm_num = Tm_num)),
+                 select(Tm_nums, A_Tm = Tm, A_Tm_num = Tm_num))
+  ordered.dat <- arrange(B, H_Tm_num, A_Tm_num, Date)
+  
+  Y <- select(mutate(group_by(ordered.dat,H_Tm_num, A_Tm_num),
+                     k = rank(Date), non_neutral = ifelse(Neutral == 1, 0, 1),
+                     H_FG_pct = H_FG/H_FGA, A_FG_pct = A_FG/A_FGA,  #_#
+                     H_2pt_pct = H_2P/H_2PA, A_2pt_pct = A_2P/A_2PA,
+                     H_FT_pct = H_FT/H_FTA, A_FT_pct = A_FT/A_FTA,
+                     H_3pt_pct = H_3P/H_3PA, A_3pt_pct = A_3P/A_3PA),
+              H_Tm,A_Tm, i = H_Tm_num, j = A_Tm_num, k, H_Pts, A_Pts, non_neutral,
+              H_2P, A_2P,H_3P,A_3P,H_FT,A_FT,
+              H_2PA, A_2PA,H_3PA,A_3PA,H_FTA,A_FTA,
+              H_2PA, A_2PA, H_3PA, A_3PA,
+              H_Asst,A_Asst, H_STL, A_STL,
+              H_BLK, A_BLK, H_TOV, A_TOV,
+              H_PF, A_PF, H_ORB, A_ORB,
+              H_DRB, A_DRB, H_TRB, A_TRB,
+              H_FG_pct, A_FG_pct, H_2pt_pct, A_2pt_pct, #_#
+              H_FT_pct, A_FT_pct, H_3pt_pct, A_3pt_pct)
+  
+  # y = difference in points between home and away team
+  Y <- summarize(group_by(Y,H_Tm,A_Tm, i,j,k, non_neutral ),
+                 ypts = H_Pts - A_Pts,
+                 y2pt = (H_2P - A_2P),
+                 y3pt = (H_3P - A_3P),
+                 yft = H_FT - A_FT,
+                 yfta = H_FTA - A_FTA,
+                 y2pta = H_2PA - A_2PA,
+                 y3pta = H_3PA - A_3PA,
+                 y_asst = H_Asst - A_Asst,
+                 y_stl = H_STL - A_STL,
+                 y_blk = H_BLK - A_BLK,
+                 y_tov = H_TOV - A_TOV,
+                 y_pf = H_PF - A_PF,
+                 y_orb = H_ORB - A_ORB,
+                 y_drb = H_DRB - A_DRB,
+                 y_trb = H_TRB - A_TRB,
+                 y_FG_pct = H_FG_pct - A_FG_pct, #_#
+                 y_2pt_pct = H_2pt_pct - A_2pt_pct,
+                 y_FT_pct = H_FT_pct - A_FT_pct,
+                 y_3pt_pct = H_3pt_pct - A_3pt_pct)
+  
+  c <- max(Y$i,Y$j)
+  n <- nrow(Y)
+  # Default values of X matrix to 0
+  X <- matrix(rep(0,c*n), nrow=n)
+  
+  # Replace the ith column with a 1 for the ith team is the home team in the wth game
+  # Replace the jth column with a -1 for the jth team is the away team in the wth game
+  for( w in 1:n){
+    X[w,Y$i[w]] <- 1
+    X[w,Y$j[w]] <- -1
+  }
+  
+  #mod1 <-  lm(Y$y ~   X - 1)
+  
+
+  # ANOVA - PTS ####
+  pts.ml2 <-  lm(Y$ypts ~ Y$non_neutral + X - 1)
+  
+  pts.anova_out <- anova(pts.ml2)
+  out_tab_temp <- data.frame(SS = rep(" ", 4), df = rep(" ", 4), 
+                             MS = rep(" ", 4), F_stat = rep(" ", 4), 
+                             p_value = rep(" ", 4),
+                             row.names = paste0("(PTS ", i,"-",i+1, ") ",
+                                                c("M1", "M2|M1", "Residual",
+                                                  "Total")), 
+                             stringsAsFactors = F)
+  out_tab_temp[1:3,1] <- round(as.numeric(pts.anova_out$`Sum Sq`[c(2,1,3)]),2)
+  out_tab_temp[4,1] <- sum(as.numeric(out_tab_temp[1:3,1]))
+  out_tab_temp[1:3,2] <- as.numeric(pts.anova_out$Df[c(2,1,3)])
+  out_tab_temp[4,2] <- sum(as.numeric(out_tab_temp[1:3,2]))
+  out_tab_temp[1:3,3] <- round(as.numeric(pts.anova_out$`Mean Sq`[c(2,1,3)]),2)
+  out_tab_temp[1:2,4] <- round(pts.anova_out$`F value`[c(2,1)],2)
+  out_tab_temp[1:2,5] <- round(pts.anova_out$`Pr(>F)`[c(2,1)],4)
+  
+  out_tab.pts <- rbind(out_tab.pts, out_tab_temp)
+  
+  # ANOVA - 2pt####
+  p2.ml2  <-  lm(Y$y2pt ~ Y$non_neutral + X - 1)
+  
+  p2.anova_out <- anova(p2.ml2)
+  out_tab_temp <- data.frame(SS = rep(" ", 4), df = rep(" ", 4), 
+                             MS = rep(" ", 4), F_stat = rep(" ", 4), 
+                             p_value = rep(" ", 4),
+                             row.names = paste0("(2PT ", i,"-",i+1, ") ",
+                                                c("M1", "M2|M1", "Residual",
+                                                  "Total")), 
+                             stringsAsFactors = F)
+  out_tab_temp[1:3,1] <- round(as.numeric(p2.anova_out$`Sum Sq`[c(2,1,3)]),2)
+  out_tab_temp[4,1] <- sum(as.numeric(out_tab_temp[1:3,1]))
+  out_tab_temp[1:3,2] <- as.numeric(p2.anova_out$Df[c(2,1,3)])
+  out_tab_temp[4,2] <- sum(as.numeric(out_tab_temp[1:3,2]))
+  out_tab_temp[1:3,3] <- round(as.numeric(p2.anova_out$`Mean Sq`[c(2,1,3)]),2)
+  out_tab_temp[1:2,4] <- round(p2.anova_out$`F value`[c(2,1)],2)
+  out_tab_temp[1:2,5] <- round(p2.anova_out$`Pr(>F)`[c(2,1)],4)
+  
+  out_tab.2pt <- rbind(out_tab.2pt, out_tab_temp)
+  
+  # ANOVA - 3pt ####
+  p3.ml2  <-  lm(Y$y3pt ~ Y$non_neutral + X - 1)
+  
+  p3.anova_out <- anova(p3.ml2)
+  out_tab_temp <- data.frame(SS = rep(" ", 4), df = rep(" ", 4), 
+                             MS = rep(" ", 4), F_stat = rep(" ", 4), 
+                             p_value = rep(" ", 4),
+                             row.names = paste0("(3PT ", i,"-",i+1, ") ",
+                                                c("M1", "M2|M1", "Residual",
+                                                  "Total")), 
+                             stringsAsFactors = F)
+  out_tab_temp[1:3,1] <- round(as.numeric(p3.anova_out$`Sum Sq`[c(2,1,3)]),2)
+  out_tab_temp[4,1] <- sum(as.numeric(out_tab_temp[1:3,1]))
+  out_tab_temp[1:3,2] <- as.numeric(p3.anova_out$Df[c(2,1,3)])
+  out_tab_temp[4,2] <- sum(as.numeric(out_tab_temp[1:3,2]))
+  out_tab_temp[1:3,3] <- round(as.numeric(p3.anova_out$`Mean Sq`[c(2,1,3)]),2)
+  out_tab_temp[1:2,4] <- round(p3.anova_out$`F value`[c(2,1)],2)
+  out_tab_temp[1:2,5] <- round(p3.anova_out$`Pr(>F)`[c(2,1)],4)
+  
+  out_tab.3pt <- rbind(out_tab.3pt, out_tab_temp)
+  
+  # ANOVA - FT made ####
+  pft.ml2 <-  lm(Y$yft  ~ Y$non_neutral + X - 1)
+  
+  ft.anova_out <- anova(pft.ml2)
+  out_tab_temp <- data.frame(SS = rep(" ", 4), df = rep(" ", 4), 
+                             MS = rep(" ", 4), F_stat = rep(" ", 4), 
+                             p_value = rep(" ", 4),
+                             row.names = paste0("(FT Made ", i,"-",i+1, ") ",
+                                                c("M1", "M2|M1", "Residual",
+                                                  "Total")), 
+                             stringsAsFactors = F)
+  out_tab_temp[1:3,1] <- round(as.numeric(ft.anova_out$`Sum Sq`[c(2,1,3)]),2)
+  out_tab_temp[4,1] <- sum(as.numeric(out_tab_temp[1:3,1]))
+  out_tab_temp[1:3,2] <- as.numeric(ft.anova_out$Df[c(2,1,3)])
+  out_tab_temp[4,2] <- sum(as.numeric(out_tab_temp[1:3,2]))
+  out_tab_temp[1:3,3] <- round(as.numeric(ft.anova_out$`Mean Sq`[c(2,1,3)]),2)
+  out_tab_temp[1:2,4] <- round(ft.anova_out$`F value`[c(2,1)],2)
+  out_tab_temp[1:2,5] <- round(ft.anova_out$`Pr(>F)`[c(2,1)],4)
+  
+  out_tab.ft <- rbind(out_tab.ft, out_tab_temp)
+
+  # ANOVA - FT attempted
+  fta.ml2 <-  lm(Y$yfta ~ Y$non_neutral + X - 1)
+  
+  ftatt.anova_out <- anova(fta.ml2)
+  out_tab_temp <- data.frame(SS = rep(" ", 4), df = rep(" ", 4), 
+                             MS = rep(" ", 4), F_stat = rep(" ", 4), 
+                             p_value = rep(" ", 4),
+                             row.names = paste0("(FT Attempted ", i,"-",i+1, ") ",
+                                                c("M1", "M2|M1", "Residual",
+                                                  "Total")), 
+                             stringsAsFactors = F)
+  out_tab_temp[1:3,1] <- round(as.numeric(ftatt.anova_out$`Sum Sq`[c(2,1,3)]),2)
+  out_tab_temp[4,1] <- sum(as.numeric(out_tab_temp[1:3,1]))
+  out_tab_temp[1:3,2] <- as.numeric(ftatt.anova_out$Df[c(2,1,3)])
+  out_tab_temp[4,2] <- sum(as.numeric(out_tab_temp[1:3,2]))
+  out_tab_temp[1:3,3] <- round(as.numeric(ftatt.anova_out$`Mean Sq`[c(2,1,3)]),2)
+  out_tab_temp[1:2,4] <- round(ftatt.anova_out$`F value`[c(2,1)],2)
+  out_tab_temp[1:2,5] <- round(ftatt.anova_out$`Pr(>F)`[c(2,1)],4)
+  
+  out_tab.ftatt <- rbind(out_tab.ftatt, out_tab_temp)  
+  
+  # ANOVA - 2PT attempted ####
+  pt2a.ml2 <-  lm(Y$y2pta ~ Y$non_neutral + X - 1)
+  
+  pt2a.anova_out <- anova(pt2a.ml2)
+  out_tab_temp <- data.frame(SS = rep(" ", 4), df = rep(" ", 4), 
+                             MS = rep(" ", 4), F_stat = rep(" ", 4), 
+                             p_value = rep(" ", 4),
+                             row.names = paste0("(2PT Attempted ", i,"-",i+1, ") ",
+                                                c("M1", "M2|M1", "Residual",
+                                                  "Total")), 
+                             stringsAsFactors = F)
+  out_tab_temp[1:3,1] <- round(as.numeric(pt2a.anova_out$`Sum Sq`[c(2,1,3)]),2)
+  out_tab_temp[4,1] <- sum(as.numeric(out_tab_temp[1:3,1]))
+  out_tab_temp[1:3,2] <- as.numeric(pt2a.anova_out$Df[c(2,1,3)])
+  out_tab_temp[4,2] <- sum(as.numeric(out_tab_temp[1:3,2]))
+  out_tab_temp[1:3,3] <- round(as.numeric(pt2a.anova_out$`Mean Sq`[c(2,1,3)]),2)
+  out_tab_temp[1:2,4] <- round(pt2a.anova_out$`F value`[c(2,1)],2)
+  out_tab_temp[1:2,5] <- round(pt2a.anova_out$`Pr(>F)`[c(2,1)],4)
+  
+  out_tab.pt2a <- rbind(out_tab.pt2a, out_tab_temp)  
+  
+  # ANOVA - 3PT attempted ####
+  pt3a.ml2 <-  lm(Y$y3pta ~ Y$non_neutral + X - 1)
+  
+  pt3a.anova_out <- anova(pt3a.ml2)
+  out_tab_temp <- data.frame(SS = rep(" ", 4), df = rep(" ", 4), 
+                             MS = rep(" ", 4), F_stat = rep(" ", 4), 
+                             p_value = rep(" ", 4),
+                             row.names = paste0("(3PT Attempted ", i,"-",i+1, ") ",
+                                                c("M1", "M2|M1", "Residual",
+                                                  "Total")), 
+                             stringsAsFactors = F)
+  out_tab_temp[1:3,1] <- round(as.numeric(pt3a.anova_out$`Sum Sq`[c(2,1,3)]),2)
+  out_tab_temp[4,1] <- sum(as.numeric(out_tab_temp[1:3,1]))
+  out_tab_temp[1:3,2] <- as.numeric(pt3a.anova_out$Df[c(2,1,3)])
+  out_tab_temp[4,2] <- sum(as.numeric(out_tab_temp[1:3,2]))
+  out_tab_temp[1:3,3] <- round(as.numeric(pt3a.anova_out$`Mean Sq`[c(2,1,3)]),2)
+  out_tab_temp[1:2,4] <- round(pt3a.anova_out$`F value`[c(2,1)],2)
+  out_tab_temp[1:2,5] <- round(pt3a.anova_out$`Pr(>F)`[c(2,1)],4)
+  
+  out_tab.pt3a <- rbind(out_tab.pt3a, out_tab_temp)  
+  
+  
+  # ANOVA - Assists ####
+  asst.ml2 <-  lm(Y$y_asst ~ Y$non_neutral + X - 1)
+  
+  asst.anova_out <- anova(asst.ml2)
+  out_tab_temp <- data.frame(SS = rep(" ", 4), df = rep(" ", 4), 
+                             MS = rep(" ", 4), F_stat = rep(" ", 4), 
+                             p_value = rep(" ", 4),
+                             row.names = paste0("(Assists ", i,"-",i+1, ") ",
+                                                c("M1", "M2|M1", "Residual",
+                                                  "Total")), 
+                             stringsAsFactors = F)
+  out_tab_temp[1:3,1] <- round(as.numeric(asst.anova_out$`Sum Sq`[c(2,1,3)]),2)
+  out_tab_temp[4,1] <- sum(as.numeric(out_tab_temp[1:3,1]))
+  out_tab_temp[1:3,2] <- as.numeric(asst.anova_out$Df[c(2,1,3)])
+  out_tab_temp[4,2] <- sum(as.numeric(out_tab_temp[1:3,2]))
+  out_tab_temp[1:3,3] <- round(as.numeric(asst.anova_out$`Mean Sq`[c(2,1,3)]),2)
+  out_tab_temp[1:2,4] <- round(asst.anova_out$`F value`[c(2,1)],2)
+  out_tab_temp[1:2,5] <- round(asst.anova_out$`Pr(>F)`[c(2,1)],4)
+  
+  out_tab.asst <- rbind(out_tab.asst, out_tab_temp)  
+  
+  # ANOVA - Steals ####
+  stl.ml2 <-  lm(Y$y_stl ~ Y$non_neutral + X - 1)
+  
+  stl.anova_out <- anova(stl.ml2)
+  out_tab_temp <- data.frame(SS = rep(" ", 4), df = rep(" ", 4), 
+                             MS = rep(" ", 4), F_stat = rep(" ", 4), 
+                             p_value = rep(" ", 4),
+                             row.names = paste0("(Steals ", i,"-",i+1, ") ",
+                                                c("M1", "M2|M1", "Residual",
+                                                  "Total")), 
+                             stringsAsFactors = F)
+  out_tab_temp[1:3,1] <- round(as.numeric(stl.anova_out$`Sum Sq`[c(2,1,3)]),2)
+  out_tab_temp[4,1] <- sum(as.numeric(out_tab_temp[1:3,1]))
+  out_tab_temp[1:3,2] <- as.numeric(stl.anova_out$Df[c(2,1,3)])
+  out_tab_temp[4,2] <- sum(as.numeric(out_tab_temp[1:3,2]))
+  out_tab_temp[1:3,3] <- round(as.numeric(stl.anova_out$`Mean Sq`[c(2,1,3)]),2)
+  out_tab_temp[1:2,4] <- round(stl.anova_out$`F value`[c(2,1)],2)
+  out_tab_temp[1:2,5] <- round(stl.anova_out$`Pr(>F)`[c(2,1)],4)
+  
+  out_tab.stl <- rbind(out_tab.stl, out_tab_temp)  
+  
+  # ANOVA - Blocks ####
+  blk.ml2 <-  lm(Y$y_blk ~ Y$non_neutral + X - 1)
+  
+  blk.anova_out <- anova(blk.ml2)
+  out_tab_temp <- data.frame(SS = rep(" ", 4), df = rep(" ", 4), 
+                             MS = rep(" ", 4), F_stat = rep(" ", 4), 
+                             p_value = rep(" ", 4),
+                             row.names = paste0("(Blocks ", i,"-",i+1, ") ",
+                                                c("M1", "M2|M1", "Residual",
+                                                  "Total")), 
+                             stringsAsFactors = F)
+  out_tab_temp[1:3,1] <- round(as.numeric(blk.anova_out$`Sum Sq`[c(2,1,3)]),2)
+  out_tab_temp[4,1] <- sum(as.numeric(out_tab_temp[1:3,1]))
+  out_tab_temp[1:3,2] <- as.numeric(blk.anova_out$Df[c(2,1,3)])
+  out_tab_temp[4,2] <- sum(as.numeric(out_tab_temp[1:3,2]))
+  out_tab_temp[1:3,3] <- round(as.numeric(blk.anova_out$`Mean Sq`[c(2,1,3)]),2)
+  out_tab_temp[1:2,4] <- round(blk.anova_out$`F value`[c(2,1)],2)
+  out_tab_temp[1:2,5] <- round(blk.anova_out$`Pr(>F)`[c(2,1)],4)
+  
+  out_tab.blk <- rbind(out_tab.blk, out_tab_temp)  
+  
+  # ANOVA - Turnovers ####
+  tov.ml2 <-  lm(Y$y_tov ~ Y$non_neutral + X - 1)
+  
+  tov.anova_out <- anova(tov.ml2)
+  out_tab_temp <- data.frame(SS = rep(" ", 4), df = rep(" ", 4), 
+                             MS = rep(" ", 4), F_stat = rep(" ", 4), 
+                             p_value = rep(" ", 4),
+                             row.names = paste0("(Turnovers ", i,"-",i+1, ") ",
+                                                c("M1", "M2|M1", "Residual",
+                                                  "Total")), 
+                             stringsAsFactors = F)
+  out_tab_temp[1:3,1] <- round(as.numeric(tov.anova_out$`Sum Sq`[c(2,1,3)]),2)
+  out_tab_temp[4,1] <- sum(as.numeric(out_tab_temp[1:3,1]))
+  out_tab_temp[1:3,2] <- as.numeric(tov.anova_out$Df[c(2,1,3)])
+  out_tab_temp[4,2] <- sum(as.numeric(out_tab_temp[1:3,2]))
+  out_tab_temp[1:3,3] <- round(as.numeric(tov.anova_out$`Mean Sq`[c(2,1,3)]),2)
+  out_tab_temp[1:2,4] <- round(tov.anova_out$`F value`[c(2,1)],2)
+  out_tab_temp[1:2,5] <- round(tov.anova_out$`Pr(>F)`[c(2,1)],4)
+  
+  out_tab.tov <- rbind(out_tab.tov, out_tab_temp)    
+  
+  # ANOVA - Personal Fouls ####
+  pf.ml2 <-  lm(Y$y_pf ~ Y$non_neutral + X - 1)
+  
+  pf.anova_out <- anova(pf.ml2)
+  out_tab_temp <- data.frame(SS = rep(" ", 4), df = rep(" ", 4), 
+                             MS = rep(" ", 4), F_stat = rep(" ", 4), 
+                             p_value = rep(" ", 4),
+                             row.names = paste0("(Personal Fouls ", i,"-",i+1, ") ",
+                                                c("M1", "M2|M1", "Residual",
+                                                  "Total")), 
+                             stringsAsFactors = F)
+  out_tab_temp[1:3,1] <- round(as.numeric(pf.anova_out$`Sum Sq`[c(2,1,3)]),2)
+  out_tab_temp[4,1] <- sum(as.numeric(out_tab_temp[1:3,1]))
+  out_tab_temp[1:3,2] <- as.numeric(pf.anova_out$Df[c(2,1,3)])
+  out_tab_temp[4,2] <- sum(as.numeric(out_tab_temp[1:3,2]))
+  out_tab_temp[1:3,3] <- round(as.numeric(pf.anova_out$`Mean Sq`[c(2,1,3)]),2)
+  out_tab_temp[1:2,4] <- round(pf.anova_out$`F value`[c(2,1)],2)
+  out_tab_temp[1:2,5] <- round(pf.anova_out$`Pr(>F)`[c(2,1)],4)
+  
+  out_tab.pf <- rbind(out_tab.pf, out_tab_temp)    
+  
+  # ANOVA - Offensive Rebounds ####
+  orb.ml2 <-  lm(Y$y_orb ~ Y$non_neutral + X - 1)
+  
+  orb.anova_out <- anova(orb.ml2)
+  out_tab_temp <- data.frame(SS = rep(" ", 4), df = rep(" ", 4), 
+                             MS = rep(" ", 4), F_stat = rep(" ", 4), 
+                             p_value = rep(" ", 4),
+                             row.names = paste0("(Off Rebounds ", i,"-",i+1, ") ",
+                                                c("M1", "M2|M1", "Residual",
+                                                  "Total")), 
+                             stringsAsFactors = F)
+  out_tab_temp[1:3,1] <- round(as.numeric(orb.anova_out$`Sum Sq`[c(2,1,3)]),2)
+  out_tab_temp[4,1] <- sum(as.numeric(out_tab_temp[1:3,1]))
+  out_tab_temp[1:3,2] <- as.numeric(orb.anova_out$Df[c(2,1,3)])
+  out_tab_temp[4,2] <- sum(as.numeric(out_tab_temp[1:3,2]))
+  out_tab_temp[1:3,3] <- round(as.numeric(orb.anova_out$`Mean Sq`[c(2,1,3)]),2)
+  out_tab_temp[1:2,4] <- round(orb.anova_out$`F value`[c(2,1)],2)
+  out_tab_temp[1:2,5] <- round(orb.anova_out$`Pr(>F)`[c(2,1)],4)
+  
+  out_tab.orb <- rbind(out_tab.orb, out_tab_temp) 
+  
+  # ANOVA - Defensive Rebounds ####
+  drb.ml2 <-  lm(Y$y_drb ~ Y$non_neutral + X - 1)
+  
+  drb.anova_out <- anova(drb.ml2)
+  out_tab_temp <- data.frame(SS = rep(" ", 4), df = rep(" ", 4), 
+                             MS = rep(" ", 4), F_stat = rep(" ", 4), 
+                             p_value = rep(" ", 4),
+                             row.names = paste0("(Def Rebounds ", i,"-",i+1, ") ",
+                                                c("M1", "M2|M1", "Residual",
+                                                  "Total")), 
+                             stringsAsFactors = F)
+  out_tab_temp[1:3,1] <- round(as.numeric(drb.anova_out$`Sum Sq`[c(2,1,3)]),2)
+  out_tab_temp[4,1] <- sum(as.numeric(out_tab_temp[1:3,1]))
+  out_tab_temp[1:3,2] <- as.numeric(drb.anova_out$Df[c(2,1,3)])
+  out_tab_temp[4,2] <- sum(as.numeric(out_tab_temp[1:3,2]))
+  out_tab_temp[1:3,3] <- round(as.numeric(drb.anova_out$`Mean Sq`[c(2,1,3)]),2)
+  out_tab_temp[1:2,4] <- round(drb.anova_out$`F value`[c(2,1)],2)
+  out_tab_temp[1:2,5] <- round(drb.anova_out$`Pr(>F)`[c(2,1)],4)
+  
+  out_tab.drb <- rbind(out_tab.drb, out_tab_temp) 
+
+  # ANOVA - Total Rebounds ####
+  trb.ml2 <-  lm(Y$y_trb ~ Y$non_neutral + X - 1)
+  
+  trb.anova_out <- anova(trb.ml2)
+  out_tab_temp <- data.frame(SS = rep(" ", 4), df = rep(" ", 4), 
+                             MS = rep(" ", 4), F_stat = rep(" ", 4), 
+                             p_value = rep(" ", 4),
+                             row.names = paste0("(Total Rebounds ", i,"-",i+1, ") ",
+                                                c("M1", "M2|M1", "Residual",
+                                                  "Total")), 
+                             stringsAsFactors = F)
+  out_tab_temp[1:3,1] <- round(as.numeric(trb.anova_out$`Sum Sq`[c(2,1,3)]),2)
+  out_tab_temp[4,1] <- sum(as.numeric(out_tab_temp[1:3,1]))
+  out_tab_temp[1:3,2] <- as.numeric(trb.anova_out$Df[c(2,1,3)])
+  out_tab_temp[4,2] <- sum(as.numeric(out_tab_temp[1:3,2]))
+  out_tab_temp[1:3,3] <- round(as.numeric(trb.anova_out$`Mean Sq`[c(2,1,3)]),2)
+  out_tab_temp[1:2,4] <- round(trb.anova_out$`F value`[c(2,1)],2)
+  out_tab_temp[1:2,5] <- round(trb.anova_out$`Pr(>F)`[c(2,1)],4)
+  
+  out_tab.trb <- rbind(out_tab.trb, out_tab_temp) 
+  
+
+ fg_pct.ml2 <-  lm(Y$y_FG_pct ~ Y$non_neutral + X - 1) #_#
+ p2_pct.ml2 <-  lm(Y$y_2pt_pct ~ Y$non_neutral + X - 1)
+ ft_pct.ml2 <-  lm(Y$y_FT_pct ~ Y$non_neutral + X - 1)
+ p3_pct.ml2 <-  lm(Y$y_3pt_pct ~ Y$non_neutral + X - 1)
+
+  # ANOVA - FG percentage #### #_#
+  
+
+  out_tab_temp <- data.frame(SS = rep(" ", 4), df = rep(" ", 4), 
+                             MS = rep(" ", 4), F_stat = rep(" ", 4), 
+                             p_value = rep(" ", 4),
+                             row.names = paste0("(FG Percentage ", i,"-",i+1, ") ",
+                                                c("M1", "M2|M1", "Residual",
+                                                  "Total")), 
+                             stringsAsFactors = F)
+  if (i >= 1983){
+  fg_pct.anova_out <- anova(fg_pct.ml2)
+  out_tab_temp[1:3,1] <- round(as.numeric(fg_pct.anova_out$`Sum Sq`[c(2,1,3)]),2)
+  out_tab_temp[4,1] <- sum(as.numeric(out_tab_temp[1:3,1]))
+  out_tab_temp[1:3,2] <- as.numeric(fg_pct.anova_out$Df[c(2,1,3)])
+  out_tab_temp[4,2] <- sum(as.numeric(out_tab_temp[1:3,2]))
+  out_tab_temp[1:3,3] <- round(as.numeric(fg_pct.anova_out$`Mean Sq`[c(2,1,3)]),2)
+  out_tab_temp[1:2,4] <- round(fg_pct.anova_out$`F value`[c(2,1)],2)
+  out_tab_temp[1:2,5] <- round(fg_pct.anova_out$`Pr(>F)`[c(2,1)],4)
+  }
+  out_tab.fg_pct <- rbind(out_tab.fg_pct, out_tab_temp) 
+  
+  # ANOVA - 2point percentage #### 
+  
+
+  out_tab_temp <- data.frame(SS = rep(" ", 4), df = rep(" ", 4), 
+                             MS = rep(" ", 4), F_stat = rep(" ", 4), 
+                             p_value = rep(" ", 4),
+                             row.names = paste0("(2PT Percentage ", i,"-",i+1, ") ",
+                                                c("M1", "M2|M1", "Residual",
+                                                  "Total")), 
+                             stringsAsFactors = F)
+  if (i >= 1983){
+  p2_pct.anova_out <- anova(p2_pct.ml2)
+  out_tab_temp[1:3,1] <- round(as.numeric(p2_pct.anova_out$`Sum Sq`[c(2,1,3)]),2)
+  out_tab_temp[4,1] <- sum(as.numeric(out_tab_temp[1:3,1]))
+  out_tab_temp[1:3,2] <- as.numeric(p2_pct.anova_out$Df[c(2,1,3)])
+  out_tab_temp[4,2] <- sum(as.numeric(out_tab_temp[1:3,2]))
+  out_tab_temp[1:3,3] <- round(as.numeric(p2_pct.anova_out$`Mean Sq`[c(2,1,3)]),2)
+  out_tab_temp[1:2,4] <- round(p2_pct.anova_out$`F value`[c(2,1)],2)
+  out_tab_temp[1:2,5] <- round(p2_pct.anova_out$`Pr(>F)`[c(2,1)],4)
+  }
+  out_tab.2pt_pct <- rbind(out_tab.2pt_pct, out_tab_temp) 
+  
+    # ANOVA - FT percentage #### 
+  
+
+  out_tab_temp <- data.frame(SS = rep(" ", 4), df = rep(" ", 4), 
+                             MS = rep(" ", 4), F_stat = rep(" ", 4), 
+                             p_value = rep(" ", 4),
+                             row.names = paste0("(FT Percentage ", i,"-",i+1, ") ",
+                                                c("M1", "M2|M1", "Residual",
+                                                  "Total")), 
+                             stringsAsFactors = F)
+  if (i >= 1983){
+  FT_pct.anova_out <- anova(ft_pct.ml2)
+  out_tab_temp[1:3,1] <- round(as.numeric(FT_pct.anova_out$`Sum Sq`[c(2,1,3)]),2)
+  out_tab_temp[4,1] <- sum(as.numeric(out_tab_temp[1:3,1]))
+  out_tab_temp[1:3,2] <- as.numeric(FT_pct.anova_out$Df[c(2,1,3)])
+  out_tab_temp[4,2] <- sum(as.numeric(out_tab_temp[1:3,2]))
+  out_tab_temp[1:3,3] <- round(as.numeric(FT_pct.anova_out$`Mean Sq`[c(2,1,3)]),2)
+  out_tab_temp[1:2,4] <- round(FT_pct.anova_out$`F value`[c(2,1)],2)
+  out_tab_temp[1:2,5] <- round(FT_pct.anova_out$`Pr(>F)`[c(2,1)],4)
+  }
+  out_tab.ft_pct <- rbind(out_tab.ft_pct, out_tab_temp) 
+  
+      # ANOVA -3pt percentage #### 
+  
+
+  out_tab_temp <- data.frame(SS = rep(" ", 4), df = rep(" ", 4), 
+                             MS = rep(" ", 4), F_stat = rep(" ", 4), 
+                             p_value = rep(" ", 4),
+                             row.names = paste0("(3PT Percentage ", i,"-",i+1, ") ",
+                                                c("M1", "M2|M1", "Residual",
+                                                  "Total")), 
+                             stringsAsFactors = F)
+  if (i >= 1983){
+  P3_pct.anova_out <- anova(p3_pct.ml2)
+  out_tab_temp[1:3,1] <- round(as.numeric(P3_pct.anova_out$`Sum Sq`[c(2,1,3)]),2)
+  out_tab_temp[4,1] <- sum(as.numeric(out_tab_temp[1:3,1]))
+  out_tab_temp[1:3,2] <- as.numeric(P3_pct.anova_out$Df[c(2,1,3)])
+  out_tab_temp[4,2] <- sum(as.numeric(out_tab_temp[1:3,2]))
+  out_tab_temp[1:3,3] <- round(as.numeric(P3_pct.anova_out$`Mean Sq`[c(2,1,3)]),2)
+  out_tab_temp[1:2,4] <- round(P3_pct.anova_out$`F value`[c(2,1)],2)
+  out_tab_temp[1:2,5] <- round(P3_pct.anova_out$`Pr(>F)`[c(2,1)],4)
+  }
+  out_tab.3pt_pct <- rbind(out_tab.3pt_pct, out_tab_temp) 
+      
+  
+  # HCA estimates ####
+  HCA[b,1] <- coef(pts.ml2)[1]
+  HCA[b,2] <- 2*coef(p2.ml2)[1]
+  HCA[b,3] <- 3*coef(p3.ml2)[1]
+  HCA[b,4] <- coef(pft.ml2)[1]
+  HCA[b,5] <- coef(fta.ml2)[1]
+  HCA[b,6] <- coef(pt2a.ml2)[1]
+  HCA[b,7] <- coef(pt3a.ml2)[1]
+  HCA[b,8] <- coef(asst.ml2)[1]
+  HCA[b,9] <- coef(stl.ml2)[1]
+  HCA[b,10] <- coef(blk.ml2)[1]
+  HCA[b,11] <- coef(tov.ml2)[1]
+  HCA[b,12] <- coef(pf.ml2)[1]
+  HCA[b,13] <- coef(orb.ml2)[1]
+  HCA[b,14] <- coef(drb.ml2)[1]
+  HCA[b,15] <- coef(trb.ml2)[1]
+  HCA[b,16] <- coef(fg_pct.ml2)[1] #_#
+  HCA[b,17] <- coef(p2_pct.ml2)[1]
+  HCA[b,18] <- coef(ft_pct.ml2)[1]
+  HCA[b,19] <- coef(p3_pct.ml2)[1]
+  HCA[b,ncol(HCA)-1] <- i
+  HCA[b,ncol(HCA)] <- i+1
+  b <- b + 1
+}
+
+HCA.CBB <- as.data.frame(HCA)
+```
+
+
+```{r, echo = FALSE, warning=FALSE,message=FALSE}
+info.stats <- summarize(group_by(div1.dat, season),
+                        # Total
+                        T_pts = sum(H_Pts) + sum(A_Pts),
+                        T_2PT = 2*(sum(H_2P) + sum(A_2P)),
+                        T_3PT = 3*(sum(H_3P) + sum(A_3P)),
+                        T_FTM = sum(H_FT) + sum(A_FT),
+                        T_2PTA = (sum(H_2PA) + sum(A_2PA)),
+                        T_3PTA = (sum(H_3PA) + sum(A_3PA)),
+                        T_FTA = sum(H_FTA) + sum(A_FTA),
+                        prop.FT = T_FTM / T_pts,
+                        prop.2pt = T_2PT / T_pts,
+                        prop.3pt = T_3PT / T_pts,
+                        P2_pct = ((1/2)*T_2PT)/T_2PTA,
+                        P3_pct = ((1/3)*T_3PT)/T_3PTA,
+                        FT_pct = T_FTM / T_FTA,
+                        
+                        # Home
+                        T_Hpts = sum(H_Pts),
+                        T_H2PT = 2*(sum(H_2P)),
+                        T_H3PT = 3*(sum(H_3P)),
+                        T_HFTM = sum(H_FT),
+                        T_H2PTA = (sum(H_2PA)),
+                        T_H3PTA = (sum(H_3PA)),
+                        T_HFTA = sum(H_FTA),
+                        prop.HFT = T_HFTM / T_Hpts,
+                        prop.H2pt = T_H2PT / T_Hpts,
+                        prop.H3pt = T_H3PT / T_Hpts,
+                        P2_Hpct = ((1/2)*T_H2PT)/T_H2PTA,
+                        P3_Hpct = ((1/3)*T_H3PT)/T_H3PTA,
+                        FT_Hpct = T_HFTM / T_HFTA ,
+                        
+                        # Away
+                        T_Apts = sum(A_Pts),
+                        T_A2PT = 2*(sum(A_2P)),
+                        T_A3PT = 3*(sum(A_3P)),
+                        T_AFTM = sum(A_FT),
+                        T_A2PTA = (sum(A_2PA)),
+                        T_A3PTA = (sum(A_3PA)),
+                        T_AFTA = sum(A_FTA),
+                        prop.AFT = T_AFTM / T_Apts,
+                        prop.A2pt = T_A2PT / T_Apts,
+                        prop.A3pt = T_A3PT / T_Apts,
+                        P2_Apct = ((1/2)*T_A2PT)/T_A2PTA,
+                        P3_Apct = ((1/3)*T_A3PT)/T_A3PTA,
+                        FT_Apct = T_AFTM / T_AFTA 
+)
+```
+
+
+```{r more packages, message=FALSE, echo=FALSE, warning=FALSE}
+library(ggplot2)
+library(gridExtra)
+```
+
+```{r loess.test, echo=FALSE}
+loess.test <- function(loess.dat){
+
+m <- loess( HCA_Val ~ Season_Start, data = loess.dat)
+
+flat.mod <- lm( HCA_Val ~ 1, data = loess.dat)
+
+reg.mod <- lm( HCA_Val ~ Season_Start, data = loess.dat)
+  
+df.loess <- m$trace.hat
+n <- nrow(loess.dat)
+
+Rss.loess <- sum(m$residuals**2)
+Rss.flat <- sum(flat.mod$residuals**2)
+Rss.reg <- sum(reg.mod$residuals**2)
+
+F.stat.flat <- ((Rss.flat - Rss.loess )/(df.loess - 1)) / (Rss.loess / (n - df.loess))
+
+F.stat.reg <- ((Rss.reg - Rss.loess )/(df.loess - 2)) / (Rss.loess / (n - df.loess))
+
+
+B <- list(F.stat.flat = F.stat.flat,
+     p.value.flat = pf(F.stat.flat, df1 = df.loess - 1, df2 = n - df.loess, lower.tail = FALSE),
+     F.stat.linreg = F.stat.reg,
+     p.value.linreg = pf(F.stat.reg, df1 = df.loess - 2, df2 = n - df.loess, lower.tail = FALSE))
+return(B)
+}
+```
+
+```{r HCA_conf_int}
+ci <- function(x) {
+  confint(x)[1, ]
+}
+models <- ls(pattern = '.ml2')
+confidence.intervals <- data.frame(lower = rep(NA, length(models)), upper = rep(NA, length(models)))
+rownames(confidence.intervals) <- models
+for ( i in 1: length(models)){
+  confidence.intervals[i,] <- ci(get(models[i]))
+}
+confidence.intervals %>% round(digits = 2) %>% print()
+```
+
+```{r summary}
+summary(HCA.CBB)
+```
+
+```{r, echo = FALSE, warning = FALSE, message = FALSE}
+ggplot(gather(select(filter(info.stats, season >= 1979), season, prop.FT, prop.2pt, prop.3pt),HCA_Type , HCA_Val, -season, na.rm=T), aes(x=season,y=HCA_Val, linetype=HCA_Type)) + geom_line() + geom_point() + xlab("Season Start") + ylab("") + ggtitle("Proportion of Points by Scoring Type", subtitle = "CBB") + scale_linetype_manual(labels = c("2 Point", "3 Point","Free Throw"), values = c(1,2,3), name="Scoring") 
+```
+
+```{r, echo = FALSE, warning = FALSE, message = FALSE}
+ggplot(gather(select(filter(info.stats, season >= 1979), season, prop.HFT, prop.H2pt, prop.H3pt),HCA_Type , HCA_Val, -season, na.rm=T), aes(x=season,y=HCA_Val, linetype=HCA_Type)) + geom_line() + geom_point()+ xlab("Season Start") + ylab("") + ggtitle("Proportion of Points by Scoring Type for the Home Team", subtitle = "CBB") + scale_linetype_manual(labels = c("2 Point", "3 Point","Free Throw"), values = c(1,2,3), name="Scoring") 
+```
+
+```{r, echo = FALSE, warning = FALSE, message = FALSE}
+ggplot(gather(select(filter(info.stats, season >= 1979), season, prop.AFT, prop.A2pt, prop.A3pt),HCA_Type , HCA_Val, -season, na.rm=T), aes(x=season,y=HCA_Val, linetype=HCA_Type)) + geom_line() + geom_point()+ xlab("Season Start") + ylab("") + ggtitle("Proportion of Points by Scoring Type for the Away Team", subtitle = "CBB") + scale_linetype_manual(labels = c("2 Point", "3 Point","Free Throw"), values = c(1,2,3), name="Scoring") 
+```
+
+```{r, echo = FALSE, warning = FALSE, message = FALSE}
+ggplot(gather(select(filter(info.stats, season >= 1979), season, P2_Hpct, P3_Hpct, FT_Hpct, P2_Apct, P3_Apct, FT_Apct),HCA_Type , HCA_Val, -season, na.rm=T), aes(x=season,y=HCA_Val, linetype=HCA_Type)) + geom_line()+ geom_point() + xlab("Season Start") + ylab("") + ggtitle("Shooting Percentages by Shot Type", subtitle = "CBB") + scale_linetype_manual(labels = c("Away FT","Home FT","Away 2PT","Home 2PT","Away 3PT","Home 3PT"), values = c(1,2,3,4,5,6), name="Scoring") 
+```
+
+```{r, echo = FALSE, warning = FALSE, message = FALSE}
+ggplot(gather(select(HCA.CBB, Season_Start, HCA_Points, HCA_2Pt, HCA_3Pt, HCA_FTmade),HCA_Type , HCA_Val, -Season_Start), aes(x=Season_Start,y=HCA_Val, linetype=HCA_Type)) + geom_line() + geom_point() + xlab("Season Start") + ylab("Points") + ggtitle("Home Court Advantage by Scoring Type",subtitle = "CBB") + scale_linetype_manual(labels = c("2 point", "3 point","Free Throws","Total points"), values = c(3,4,2,1), name = "HCA")  
+```
+
+```{r, echo = FALSE, warning = FALSE, message = FALSE}
+tot.pts <- ggplot(gather(select(HCA.CBB, Season_Start, HCA_Points),HCA_Type , HCA_Val, -Season_Start), aes(x=Season_Start,y=HCA_Val)) + geom_line() + geom_point() + xlab("Season Start") + ylab("Points") + ggtitle("Total Points")  + geom_smooth() #+ scale_linetype_manual(labels = c("2 point", "3 point","Free Throws","Total points"), values = c(3,4,2,1), name = "HCA")  
+
+tot.pts
+l.dat <- gather(select(HCA.CBB, Season_Start, HCA_Points),HCA_Type , HCA_Val, -Season_Start)
+loess.test(l.dat)
+```
+
+```{r, echo = FALSE, warning = FALSE, message = FALSE}
+two.pts <- ggplot(gather(select(HCA.CBB, Season_Start, HCA_2Pt),HCA_Type , HCA_Val, -Season_Start, na.rm=T), aes(x=Season_Start,y=HCA_Val)) + geom_line() + geom_point() + xlab("Season Start") + ylab("Points") + ggtitle("2 Point Shots")  + geom_smooth() #+ scale_linetype_manual(labels = c("2 point", "3 point","Free Throws","Total points"), values = c(3,4,2,1), name = "HCA") 
+
+two.pts
+l.dat <- gather(select(HCA.CBB, Season_Start, HCA_2Pt),HCA_Type , HCA_Val, -Season_Start, na.rm=T)
+loess.test(l.dat)
+```
+
+```{r, echo = FALSE, warning = FALSE, message = FALSE}
+three.pts <- ggplot(gather(select(HCA.CBB, Season_Start, HCA_3Pt),HCA_Type , HCA_Val, -Season_Start, na.rm=T), aes(x=Season_Start,y=HCA_Val)) + geom_line() + geom_point() + xlab("Season Start") + ylab("Points") + ggtitle("3 Point Shots")  + geom_smooth() #+ scale_linetype_manual(labels = c("2 point", "3 point","Free Throws","Total points"), values = c(3,4,2,1), name = "HCA")  
+
+three.pts
+l.dat <- gather(select(HCA.CBB, Season_Start, HCA_3Pt),HCA_Type , HCA_Val, -Season_Start, na.rm=T)
+loess.test(l.dat)
+```
+
+```{r, echo = FALSE, warning = FALSE, message = FALSE}
+ft.made <- ggplot(gather(select(HCA.CBB, Season_Start, HCA_FTmade),HCA_Type , HCA_Val, -Season_Start, na.rm=T), aes(x=Season_Start,y=HCA_Val)) + geom_line() + geom_point() + xlab("Season Start") + ylab("Points") + ggtitle("Free Throws Made")  + geom_smooth() #+ scale_linetype_manual(labels = c("2 point", "3 point","Free Throws","Total points"), values = c(3,4,2,1), name = "HCA")  
+
+ft.made
+l.dat <- gather(select(HCA.CBB, Season_Start, HCA_FTmade),HCA_Type , HCA_Val, -Season_Start, na.rm=T)
+loess.test(l.dat)
+
+a <- grid.arrange(tot.pts,two.pts,ft.made,three.pts, nrow = 2, top = "CBB Home Court Advantage")
+a
+ggsave("C:\\Users\\wlche\\OneDrive - University of Iowa\\Creative Component\\Presentation\\CBB_points2.jpg",a,
+       dpi = 400, width = 9, height = 6)
+
+```
+
+
+```{r, echo = FALSE, warning = FALSE, message = FALSE}
+ggplot(gather(select(HCA.CBB, Season_Start, HCA_FTattempt, HCA_2PTattempt, HCA_3PTattempt),HCA_Type , HCA_Val, -Season_Start), aes(x=Season_Start,y=HCA_Val, linetype=HCA_Type)) + geom_line() + geom_point() + xlab("Season Start") + ylab("Attempts") + ggtitle("Home Court Advantage by Shot Attempts", subtitle = "CBB") + scale_linetype_manual(labels = c("2 point", "3 point","Free Throws"), values = c(3,2,1), name="HCA") 
+```
+
+```{r, echo = FALSE, warning = FALSE, message = FALSE}
+ft.attempt <- ggplot(gather(select(HCA.CBB, Season_Start, HCA_FTattempt),HCA_Type , HCA_Val, -Season_Start, na.rm=T), aes(x=Season_Start,y=HCA_Val)) + geom_line() + geom_point() + xlab("Season Start") + ylab("Attempts") + ggtitle("Free Throws Attempted")  + geom_smooth() #+ scale_linetype_manual(labels = c("2 point", "3 point","Free Throws","Total points"), values = c(3,4,2,1), name = "HCA")  
+ft.attempt
+l.dat <- gather(select(HCA.CBB, Season_Start, HCA_FTattempt),HCA_Type , HCA_Val, -Season_Start, na.rm=T)
+
+loess.test(l.dat)
+```
+
+```{r, echo = FALSE, warning = FALSE, message = FALSE}
+two.attempt <- ggplot(gather(select(HCA.CBB, Season_Start, HCA_2PTattempt),HCA_Type , HCA_Val, -Season_Start, na.rm=T), aes(x=Season_Start,y=HCA_Val)) + geom_line() + geom_point() + xlab("Season Start") + ylab("Atempts") + ggtitle("2 Point Shots Attempted")  + geom_smooth() #+ scale_linetype_manual(labels = c("2 point", "3 point","Free Throws","Total points"), values = c(3,4,2,1), name = "HCA")  
+two.attempt
+l.dat <- gather(select(HCA.CBB, Season_Start, HCA_2PTattempt),HCA_Type , HCA_Val, -Season_Start, na.rm=T)
+loess.test(l.dat)
+```
+
+```{r, echo = FALSE, warning = FALSE, message = FALSE}
+three.attempt <- ggplot(gather(select(HCA.CBB, Season_Start, HCA_3PTattempt),HCA_Type , HCA_Val, -Season_Start, na.rm=T), aes(x=Season_Start,y=HCA_Val)) + geom_line() + geom_point() + xlab("Season Start") + ylab("Attempts") + ggtitle("Home Court Advantage in 3 Point Shots Attempted", subtitle = "CBB")  + geom_smooth() + geom_smooth(method = "lm") #+ scale_linetype_manual(labels = c("2 point", "3 point","Free Throws","Total points"), values = c(3,4,2,1), name = "HCA")  
+
+three.attempt
+l.dat <- gather(select(HCA.CBB, Season_Start, HCA_3PTattempt),HCA_Type , HCA_Val, -Season_Start, na.rm=T)
+loess.test(l.dat)
+```
+
+
+```{r, echo = FALSE, warning = FALSE, message = FALSE}
+ggplot(gather(select(HCA.CBB, Season_Start, HCA_Assists, HCA_Steals, HCA_Blocks, HCA_Turnovers, HCA_Personal_Fouls),HCA_Type , HCA_Val, -Season_Start, na.rm=T), aes(x=Season_Start,y=HCA_Val, linetype=HCA_Type)) + geom_line() + geom_point() + xlab("Season Start") + ylab("Number") + ggtitle("Home Court Advantage in Other Areas", subtitle = "CBB") + scale_linetype_manual(labels = c("Assists", "Blocks","Personal Fouls","Steals","Turnovers"), values = 1:5, name="HCA")
+```
+
+```{r, echo = FALSE, warning = FALSE, message = FALSE}
+assists <- ggplot(gather(select(HCA.CBB, Season_Start, HCA_Assists),HCA_Type , HCA_Val, -Season_Start, na.rm=T), aes(x=Season_Start,y=HCA_Val)) + geom_line() + geom_point() + xlab("Season Start") + ylab("Assists") + ggtitle("Assists")  + geom_smooth() #+ scale_linetype_manual(labels = c("2 point", "3 point","Free Throws","Total points"), values = c(3,4,2,1), name = "HCA")  
+
+assists
+l.dat <- gather(select(HCA.CBB, Season_Start, HCA_Assists),HCA_Type , HCA_Val, -Season_Start, na.rm=T)
+loess.test(l.dat)
+```
+
+```{r, echo = FALSE, warning = FALSE, message = FALSE}
+steals <- ggplot(gather(select(HCA.CBB, Season_Start, HCA_Steals),HCA_Type , HCA_Val, -Season_Start, na.rm=T), aes(x=Season_Start,y=HCA_Val)) + geom_line() + geom_point() + xlab("Season Start") + ylab("Steals") + ggtitle("Steals")  + geom_smooth() #+ scale_linetype_manual(labels = c("2 point", "3 point","Free Throws","Total points"), values = c(3,4,2,1), name = "HCA")  
+
+steals
+l.dat <- gather(select(HCA.CBB, Season_Start, HCA_Steals),HCA_Type , HCA_Val, -Season_Start, na.rm=T)
+loess.test(l.dat)
+```
+
+```{r, echo = FALSE, warning = FALSE, message = FALSE}
+blocks <- ggplot(gather(select(HCA.CBB, Season_Start, HCA_Blocks),HCA_Type , HCA_Val, -Season_Start, na.rm=T), aes(x=Season_Start,y=HCA_Val)) + geom_line() + geom_point() + xlab("Season Start") + ylab("Blocks") + ggtitle("Blocked Shots")  + geom_smooth() #+ scale_linetype_manual(labels = c("2 point", "3 point","Free Throws","Total points"), values = c(3,4,2,1), name = "HCA") 
+
+blocks
+l.dat <- gather(select(HCA.CBB, Season_Start, HCA_Blocks),HCA_Type , HCA_Val, -Season_Start, na.rm=T)
+loess.test(l.dat)
+```
+
+```{r, echo = FALSE, warning = FALSE, message = FALSE}
+turnovers <- ggplot(gather(select(HCA.CBB, Season_Start, HCA_Turnovers),HCA_Type , HCA_Val, -Season_Start, na.rm=T), aes(x=Season_Start,y=HCA_Val)) + geom_line() + geom_point() + xlab("Season Start") + ylab("Turnovers") + ggtitle("Turnovers")  + geom_smooth() #+ scale_linetype_manual(labels = c("2 point", "3 point","Free Throws","Total points"), values = c(3,4,2,1), name = "HCA")  
+
+turnovers
+l.dat <- gather(select(HCA.CBB, Season_Start, HCA_Turnovers),HCA_Type , HCA_Val, -Season_Start, na.rm=T)
+loess.test(l.dat)
+
+b <- grid.arrange(assists,steals,blocks,turnovers, nrow = 2, top = "CBB Home Court Advantage")
+b
+
+ggsave("C:\\Users\\wlche\\OneDrive - University of Iowa\\Creative Component\\Presentation\\CBB_assists2.jpg",b,
+       dpi = 400, width = 9, height = 6)
+```
+
+```{r, echo = FALSE, warning = FALSE, message = FALSE}
+fouls <- ggplot(gather(select(HCA.CBB, Season_Start, HCA_Personal_Fouls),HCA_Type , HCA_Val, -Season_Start, na.rm=T), aes(x=Season_Start,y=HCA_Val)) + geom_line() + geom_point() + xlab("Season Start") + ylab("Fouls") + ggtitle("Personal Fouls")  + geom_smooth() #+ scale_linetype_manual(labels = c("2 point", "3 point","Free Throws","Total points"), values = c(3,4,2,1), name = "HCA")  
+
+fouls
+l.dat <- gather(select(HCA.CBB, Season_Start, HCA_Personal_Fouls),HCA_Type , HCA_Val, -Season_Start, na.rm=T)
+loess.test(l.dat)
+```
+
+```{r, echo = FALSE, warning = FALSE, message = FALSE}
+ggplot(gather(select(HCA.CBB, Season_Start, HCA_ORebounds, HCA_DRebounds, HCA_Total_Rebounds),HCA_Type , HCA_Val, -Season_Start, na.rm=T), aes(x=Season_Start,y=HCA_Val, linetype=HCA_Type)) + geom_line() + geom_point() + xlab("Season Start") + ylab("Rebounds") + ggtitle("Home Court Advantage in Rebounds", subtitle = "CBB") + scale_linetype_manual(labels = c("Def. Rebounds", "Off. Rebounds","Total Rebounds"), values = c(2,3,1), name="HCA") 
+```
+
+```{r, echo = FALSE, warning = FALSE, message = FALSE}
+rebounds <- ggplot(gather(select(HCA.CBB, Season_Start, HCA_Total_Rebounds),HCA_Type , HCA_Val, -Season_Start, na.rm=T), aes(x=Season_Start,y=HCA_Val)) + geom_line() + geom_point() + xlab("Season Start") + ylab("Rebounds") + ggtitle("Rebounds")  + geom_smooth() #+ scale_linetype_manual(labels = c("2 point", "3 point","Free Throws","Total points"), values = c(3,4,2,1), name = "HCA")  
+
+rebounds
+l.dat <- gather(select(HCA.CBB, Season_Start, HCA_Total_Rebounds),HCA_Type , HCA_Val, -Season_Start, na.rm=T)
+loess.test(l.dat)
+
+c <- grid.arrange(fouls,ft.attempt,two.attempt, rebounds, nrow = 2, top = "CBB Home Court Advantage")
+c
+
+ggsave("C:\\Users\\wlche\\OneDrive - University of Iowa\\Creative Component\\Presentation\\CBB_fouls2.jpg",c,
+       dpi = 400, width = 9, height = 6)
+
+```
+
+```{r, echo = FALSE, warning = FALSE, message = FALSE}
+ggplot(gather(select(HCA.CBB, Season_Start, HCA_ORebounds),HCA_Type , HCA_Val, -Season_Start, na.rm=T), aes(x=Season_Start,y=HCA_Val)) + geom_line() + geom_point() + xlab("Season Start") + ylab("Rebounds") + ggtitle("Home Court Advantage in Offensive Rebounds", subtitle = "CBB")  + geom_smooth() #+ scale_linetype_manual(labels = c("2 point", "3 point","Free Throws","Total points"), values = c(3,4,2,1), name = "HCA") 
+
+l.dat <- gather(select(HCA.CBB, Season_Start, HCA_ORebounds),HCA_Type , HCA_Val, -Season_Start, na.rm=T)
+loess.test(l.dat)
+```
+
+```{r, echo = FALSE, warning = FALSE, message = FALSE}
+ggplot(gather(select(HCA.CBB, Season_Start, HCA_DRebounds),HCA_Type , HCA_Val, -Season_Start, na.rm=T), aes(x=Season_Start,y=HCA_Val)) + geom_line() + geom_point() + xlab("Season Start") + ylab("Rebounds") + ggtitle("Home Court Advantage in Defensive Rebounds", subtitle = "CBB")  + geom_smooth() #+ scale_linetype_manual(labels = c("2 point", "3 point","Free Throws","Total points"), values = c(3,4,2,1), name = "HCA")  
+
+l.dat <- gather(select(HCA.CBB, Season_Start, HCA_DRebounds),HCA_Type , HCA_Val, -Season_Start, na.rm=T)
+loess.test(l.dat)
+```
+
+```{r, echo = FALSE, warning = FALSE, message = FALSE}
+library(scales)
+ggplot(gather(select(HCA.CBB, Season_Start, HCA_FG_Pct),HCA_Type , HCA_Val, -Season_Start, na.rm=T), aes(x=Season_Start,y=HCA_Val)) + geom_line() + geom_point() + xlab("Season Start") + ylab("Rebounds") + ggtitle("Home Court Advantage in FG Percent", subtitle = "CBB")  + geom_smooth() + scale_y_continuous(labels = percent) #+ scale_linetype_manual(labels = c("2 point", "3 point","Free Throws","Total points"), values = c(3,4,2,1), name = "HCA")  
+
+loess.dat <- gather(select(HCA.CBB, Season_Start,  HCA_FG_Pct),HCA_Type , HCA_Val, -Season_Start, na.rm=T)
+
+loess.test(loess.dat)
+```
+
+```{r, echo = FALSE, warning = FALSE, message = FALSE}
+ggplot(gather(select(HCA.CBB, Season_Start, HCA_2PT_Pct),HCA_Type , HCA_Val, -Season_Start, na.rm=T), aes(x=Season_Start,y=HCA_Val)) + geom_line() + geom_point() + xlab("Season Start") + ylab("Rebounds") + ggtitle("Home Court Advantage in 2pt Percent", subtitle = "CBB")  + geom_smooth() + scale_y_continuous(labels = percent) #+ scale_linetype_manual(labels = c("2 point", "3 point","Free Throws","Total points"), values = c(3,4,2,1), name = "HCA")  
+
+loess.dat <- gather(select(HCA.CBB, Season_Start,  HCA_2PT_Pct),HCA_Type , HCA_Val, -Season_Start, na.rm=T)
+
+loess.test(loess.dat)
+```
+
+```{r, echo = FALSE, warning = FALSE, message = FALSE}
+ggplot(gather(select(HCA.CBB, Season_Start, HCA_FT_Pct),HCA_Type , HCA_Val, -Season_Start, na.rm=T), aes(x=Season_Start,y=HCA_Val)) + geom_line() + geom_point() + xlab("Season Start") + ylab("Rebounds") + ggtitle("Home Court Advantage in FT Percent", subtitle = "CBB")  + geom_smooth() + scale_y_continuous(labels = percent)#+ scale_linetype_manual(labels = c("2 point", "3 point","Free Throws","Total points"), values = c(3,4,2,1), name = "HCA")  
+
+loess.dat <- gather(select(HCA.CBB, Season_Start,  HCA_FT_Pct),HCA_Type , HCA_Val, -Season_Start, na.rm=T)
+
+loess.test(loess.dat)
+```
+
+```{r, echo = FALSE, warning = FALSE, message = FALSE}
+ggplot(gather(select(HCA.CBB, Season_Start, HCA_3PT_Pct),HCA_Type , HCA_Val, -Season_Start, na.rm=T), aes(x=Season_Start,y=HCA_Val)) + geom_line() + geom_point() + xlab("Season Start") + ylab("Rebounds") + ggtitle("Home Court Advantage in 3pt Percent", subtitle = "CBB")  + geom_smooth() + scale_y_continuous(labels = percent)#+ scale_linetype_manual(labels = c("2 point", "3 point","Free Throws","Total points"), values = c(3,4,2,1), name = "HCA")  
+
+loess.dat <- gather(select(HCA.CBB, Season_Start,  HCA_3PT_Pct),HCA_Type , HCA_Val, -Season_Start, na.rm=T)
+
+loess.test(loess.dat)
+```
